@@ -1,40 +1,105 @@
 # Plantilla de preprocesamiento de datos
 
-#Cambios realizados:
-#Verificación de valores nulos: Se añade un chequeo para detectar si el dataset tiene valores nulos y advertir al usuario.
-#Comentarios detallados: Cada sección incluye explicaciones claras sobre qué hace el código.
-#Mensajes de depuración: Se añaden prints para verificar las dimensiones de los conjuntos de entrenamiento y prueba.
-
-# Importando las bibliotecas necesarias
-import numpy as np  # Para manejo de vectores y matrices
-import matplotlib.pyplot as plt  # Para visualización de datos (aunque no se usa aquí)
-import pandas as pd  # Para manipulación y análisis de datos
-
-# Importar el dataset
-# Asegúrate de que 'Data.csv' esté en el mismo directorio o proporciona la ruta completa.
-dataset = pd.read_csv('Data.csv')
-
-# Verificar si hay valores nulos en el dataset
-if dataset.isnull().values.any():
-    print("El dataset contiene valores nulos. Considera imputarlos o eliminarlos antes de continuar.")
-
-# Variables independientes (X) y variable objetivo (y)
-# Seleccionamos todas las columnas excepto la última como variables independientes (X)
-X = dataset.iloc[:, :-1].values
-# Seleccionamos la última columna como la variable objetivo (y)
-y = dataset.iloc[:, -1].values
-
-# Dividir el dataset en conjunto de entrenamiento y conjunto de prueba
+import numpy as np
+import pandas as pd
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import LabelEncoder, OneHotEncoder, StandardScaler
+from sklearn.compose import ColumnTransformer
 from sklearn.model_selection import train_test_split
 
-# Dividimos los datos: 80% para entrenamiento y 20% para prueba
-# random_state asegura que los resultados sean reproducibles
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0)
 
-# Mostrar información básica para verificar las dimensiones de los datos
-print("Dimensiones de X_train:", X_train.shape)
-print("Dimensiones de X_test:", X_test.shape)
-print("Dimensiones de y_train:", y_train.shape)
-print("Dimensiones de y_test:", y_test.shape)
+def read_and_preprocessing(file_path):
+    dataset = pd.read_csv(file_path)
+    dataset = replace_null(dataset)
+    dataset = encode_categorical_data(dataset)
+    return dataset
 
 
+def replace_null(dataset):
+    if dataset.isnull().values.any():
+        print_message("Valores nulos. Se reemplazarán con la media de la columna.")
+        imputer = SimpleImputer(missing_values=np.nan, strategy="mean")
+        imputer.fit(dataset.iloc[:, 1:3])
+        dataset.iloc[:, 1:3] = imputer.transform(dataset.iloc[:, 1:3])
+    else:
+        print("El dataset no contiene valores nulos.")
+    return dataset
+
+
+def print_message(message):
+    print(message)
+    print()
+
+
+def encode_categorical_data(dataset):
+    X = dataset.iloc[:, :-1].values
+    y = dataset.iloc[:, -1].values
+
+    X = one_hot_encoding(X, [0])
+    y = label_encoding(y)
+
+    dataset = pd.DataFrame(X)
+    dataset["Purchased"] = y
+
+    return dataset
+
+
+def one_hot_encoding(dataset, category_indices):
+    ct = ColumnTransformer(
+        transformers=[
+            ("one_hot_encoder", OneHotEncoder(categories="auto"), category_indices)
+        ],
+        remainder="passthrough",
+    )
+    dataset = ct.fit_transform(dataset)
+    return dataset
+
+
+def label_encoding(dataset):
+    labelEncoder = LabelEncoder()
+    dataset = labelEncoder.fit_transform(dataset)
+    return dataset
+
+
+# Dividir el dataset en conjunto de entrenamiento y conjunto de prueba
+def divide_dataset(dataset):
+    independent_matrix = dataset.iloc[:, :-1].values
+    target_vector = dataset.iloc[:, -1].values
+
+    # Dividimos los datos: 80% para entrenamiento y 20% para prueba
+    # random_state asegura que los resultados sean reproducibles
+    return train_test_split(
+        independent_matrix, target_vector, test_size=0.2, random_state=0
+    )
+
+
+# Escalado de características, se aplica una estandarización en este caso
+def feature_scaling(X_train, X_test):
+    sc = StandardScaler()
+    X_train = sc.fit_transform(X_train)
+    X_test = sc.transform(X_test)
+    return X_train, X_test
+
+
+if __name__ == "__main__":
+    file_path = "Data.csv"
+    dataset = read_and_preprocessing(file_path)
+    X_train, X_test, y_train, y_test = divide_dataset(dataset)
+    X_train_standardized, X_test_standardized = feature_scaling(X_train, X_test)
+
+    print("Datos de X_train estandarizados:")
+    print(X_train_standardized)
+    print()
+    print("Datos de X_test estandarizados:")
+    print(X_test_standardized)
+
+    # Para este caso, nuestro algoritmo es de clasificación (queremos predecir si un cliente comprará o no un producto)
+    # Por lo tanto, no es necesario estandarizar y_train y y_test
+    # ** Cuando se trate de un caso de predicción, como en la regresión, entonces si vamos a estandarizar y_train y y_test
+    print()
+    print("Datos de y_train:")
+    print(y_train)
+    print()
+    print("Datos de y_test:")
+    print(y_test)
+    print()
